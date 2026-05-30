@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>UniProxy</title>
+  <link rel="stylesheet" href="popup.css" />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Syne:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+</head>
+<body>
+  <div class="app" id="app">
+    <header class="header">
+      <div class="logo">
+        <div class="logo-mark">
+          <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+            <circle cx="10" cy="10" r="9" stroke="currentColor" stroke-width="1.2"/>
+            <circle cx="10" cy="10" r="4" fill="currentColor" opacity="0.3"/>
+            <circle cx="10" cy="10" r="1.5" fill="currentColor"/>
+            <line x1="10" y1="1" x2="10" y2="5" stroke="currentColor" stroke-width="1.2"/>
+            <line x1="10" y1="15" x2="10" y2="19" stroke="currentColor" stroke-width="1.2"/>
+            <line x1="1" y1="10" x2="5" y2="10" stroke="currentColor" stroke-width="1.2"/>
+            <line x1="15" y1="10" x2="19" y2="10" stroke="currentColor" stroke-width="1.2"/>
+          </svg>
+        </div>
+        <span class="logo-text">UniProxy</span>
+      </div>
+      <div class="header-right">
+        <button class="lang-btn" id="langBtn" title="Switch language">
+          <span class="flag" id="flagIcon">🇺🇸</span>
+        </button>
+        <button class="settings-btn" id="settingsBtn" title="Tunneling settings">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+            <path d="M6.5 1.5h3l.5 1.5a4.5 4.5 0 0 1 1.06.62l1.56-.5 1.5 2.6-1.2 1.1a4.6 4.6 0 0 1 0 1.36l1.2 1.1-1.5 2.6-1.56-.5A4.5 4.5 0 0 1 10 11.88l-.5 1.62h-3l-.5-1.62a4.5 4.5 0 0 1-1.06-.62l-1.56.5-1.5-2.6 1.2-1.1a4.6 4.6 0 0 1 0-1.36l-1.2-1.1 1.5-2.6 1.56.5A4.5 4.5 0 0 1 6 3l.5-1.5z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/>
+            <circle cx="8" cy="8" r="2" stroke="currentColor" stroke-width="1.2"/>
+          </svg>
+        </button>
+        <button class="add-btn" id="addBtn" title="New Profile">
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+            <line x1="7" y1="1" x2="7" y2="13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+            <line x1="1" y1="7" x2="13" y2="7" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+          </svg>
+        </button>
+      </div>
+    </header>
+
+    <div class="status-bar" id="statusBar">
+      <div class="status-indicator">
+        <span class="status-dot" id="statusDot"></span>
+        <span class="status-text" id="statusText">No active proxy</span>
+      </div>
+      <span class="status-ip" id="statusIp"></span>
+    </div>
+
+    <div class="view" id="viewList">
+      <div class="profiles-container" id="profilesList"></div>
+      <div class="empty-state" id="emptyState">
+        <div class="empty-icon">
+          <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
+            <rect x="4" y="8" width="24" height="18" rx="2" stroke="currentColor" stroke-width="1.2" stroke-dasharray="3 2"/>
+            <line x1="4" y1="13" x2="28" y2="13" stroke="currentColor" stroke-width="1.2"/>
+            <circle cx="16" cy="21" r="3" stroke="currentColor" stroke-width="1.2"/>
+          </svg>
+        </div>
+        <p class="empty-title" id="emptyTitle">No profiles yet</p>
+        <p class="empty-sub" id="emptySub">Click <span>+</span> to add your first proxy</p>
+      </div>
+    </div>
+
+    <div class="view hidden" id="viewForm">
+      <div class="form-header">
+        <button class="back-btn" id="backBtn">
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+            <path d="M9 2L4 7L9 12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </button>
+        <span class="form-title" id="formTitle">New Profile</span>
+      </div>
+      <div class="form-body">
+        <input type="hidden" id="profileId" />
+        
+        <div class="field">
+          <label class="label" data-i18n="labelName">Name</label>
+          <input class="input" type="text" id="profileName" placeholder="e.g. Work VPN" maxlength="32" data-i18n-ph="placeholderName" />
+        </div>
+        
+        <div class="field">
+          <label class="label" data-i18n="labelProtocol">Protocol</label>
+          <div class="type-selector" id="typeSelector">
+            <button class="type-btn active" data-type="http">HTTP</button>
+            <button class="type-btn" data-type="https">HTTPS</button>
+            <button class="type-btn" data-type="socks5">SOCKS5</button>
+            <button class="type-btn" data-type="socks4">SOCKS4</button>
+          </div>
+        </div>
+        
+        <div class="field-row">
+          <div class="field flex-1">
+            <label class="label" data-i18n="labelHost">Host</label>
+            <input class="input" type="text" id="profileHost" placeholder="127.0.0.1" data-i18n-ph="placeholderHost" />
+          </div>
+          <div class="field w-port">
+            <label class="label" data-i18n="labelPort">Port</label>
+            <input class="input" type="number" id="profilePort" placeholder="8080" min="1" max="65535" data-i18n-ph="placeholderPort" />
+          </div>
+        </div>
+        
+        <div class="field">
+          <label class="label" data-i18n="labelUser">Username</label>
+          <input class="input" type="text" id="profileUser" placeholder="username" autocomplete="off" data-i18n-ph="placeholderUser" />
+        </div>
+        
+        <div class="field">
+          <label class="label" data-i18n="labelPass">Password</label>
+          <div class="pw-wrap">
+            <input class="input" type="password" id="profilePass" placeholder="••••••••" autocomplete="off" data-i18n-ph="placeholderPass" />
+            <button class="pw-toggle" id="pwToggle" type="button">
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                <path d="M1 7s2.5-4.5 6-4.5S13 7 13 7s-2.5 4.5-6 4.5S1 7 1 7z" stroke="currentColor" stroke-width="1.2"/>
+                <circle cx="7" cy="7" r="1.8" stroke="currentColor" stroke-width="1.2"/>
+              </svg>
+            </button>
+          </div>
+        </div>
+        
+        <div class="form-actions">
+          <button class="btn btn-ghost" id="testBtn">
+            <span class="btn-text">Test</span>
+            <span class="loader hidden" id="testLoader"></span>
+          </button>
+          <button class="btn btn-primary" id="saveBtn">Save</button>
+        </div>
+        <div class="toast hidden" id="toast"></div>
+      </div>
+    </div>
+
+    <div class="view hidden" id="viewSettings">
+      <div class="form-header">
+        <button class="back-btn" id="settingsBackBtn">
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+            <path d="M9 2L4 7L9 12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </button>
+        <span class="form-title" data-i18n="settingsTitle">Site Tunneling</span>
+      </div>
+      <div class="form-body" style="gap: 16px;">
+        <div class="field">
+          <label class="label" data-i18n="tunnelModeLabel">Proxy Mode</label>
+          <div class="mode-selector" id="tunnelModeSelector">
+            <button class="mode-btn" data-mode="all" data-i18n="modeAll">All sites</button>
+            <button class="mode-btn" data-mode="specific" data-i18n="modeSpecific">Specific sites only</button>
+          </div>
+          <div class="note-text" id="modeNote" data-i18n="modeNote">When “Specific sites” is selected, only the domains listed below will use the proxy. Other traffic goes direct.</div>
+        </div>
+
+        <div class="field" id="domainsSection">
+          <label class="label" data-i18n="domainsLabel">Tunneled Domains</label>
+          <div class="domain-list" id="domainList"></div>
+          <div class="domain-add">
+            <input type="text" class="input" id="newDomainInput" placeholder="example.com" data-i18n-ph="domainPlaceholder" />
+            <button class="btn btn-primary add-domain-btn" id="addDomainBtn" data-i18n="addDomainBtn">+ Add</button>
+          </div>
+          <div class="note-text" data-i18n="domainNote">Use exact hostnames, e.g. “google.com” matches www.google.com and accounts.google.com (subdomains).</div>
+        </div>
+        <div class="toast hidden" id="settingsToast"></div>
+      </div>
+    </div>
+
+  </div>
+  <script src="popup.js"></script>
+</body>
+</html>
