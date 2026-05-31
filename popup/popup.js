@@ -38,7 +38,17 @@ const TRANSLATIONS = {
     domainsLabel:   'Tunneled Domains',
     domainPlaceholder: 'example.com',
     addDomainBtn:   '+ Add',
-    domainNote:     'Exact hostname or subdomain matching. "example.com" matches any subdomain of example.com.'
+    domainNote:     'Exact hostname or subdomain matching. "example.com" matches any subdomain of example.com.',
+    importBtn:      'Import .txt',
+    importTitle:    'Import Domains',
+    importSub:      'Preview before adding',
+    importNew:      'New',
+    importDupes:    'Dupes',
+    importInvalid:  'Invalid',
+    importCancel:   'Cancel',
+    importConfirm:  'Add Domains',
+    importEmpty:    'File is empty or has no valid domains',
+    importDone:     'Imported {n} domain(s)',
   },
   ru: {
     noProxy:        'Нет активного прокси',
@@ -79,7 +89,17 @@ const TRANSLATIONS = {
     domainsLabel:   'Туннелируемые домены',
     domainPlaceholder: 'example.com',
     addDomainBtn:   '+ Добавить',
-    domainNote:     'Точное имя хоста или поддомен. "example.com" соответствует любому поддомену example.com.'
+    domainNote:     'Точное имя хоста или поддомен. "example.com" соответствует любому поддомену example.com.',
+    importBtn:      'Импорт .txt',
+    importTitle:    'Импорт доменов',
+    importSub:      'Предпросмотр перед добавлением',
+    importNew:      'Новых',
+    importDupes:    'Дубли',
+    importInvalid:  'Неверных',
+    importCancel:   'Отмена',
+    importConfirm:  'Добавить',
+    importEmpty:    'Файл пуст или не содержит доменов',
+    importDone:     'Импортировано: {n}',
   }
 };
 
@@ -132,11 +152,19 @@ function applyTranslations() {
   document.querySelectorAll('[data-i18n="domainsLabel"]').forEach(el => el.textContent = t('domainsLabel'));
   document.querySelectorAll('[data-i18n="addDomainBtn"]').forEach(el => el.textContent = t('addDomainBtn'));
   document.querySelectorAll('[data-i18n="domainNote"]').forEach(el => el.textContent = t('domainNote'));
+  document.querySelectorAll('[data-i18n="importBtn"]').forEach(el => el.textContent = t('importBtn'));
 }
 
 let state = { enabled: false, activeProfileId: null, profiles: [], tunnelMode: 'all', tunnelDomains: [] };
 let selectedType = 'http';
 let disconnectBar = null;
+
+function showView(id) {
+  ['viewList', 'viewForm', 'viewSettings'].forEach(v => {
+    document.getElementById(v).classList.toggle('hidden', v !== id);
+  });
+}
+
 
 const DRAFT_KEY = 'uniproxy_form_draft';
 
@@ -199,8 +227,7 @@ function loadState() {
 }
 
 function restoreFormFromDraft(draft) {
-  document.getElementById('viewList').classList.add('hidden');
-  document.getElementById('viewForm').classList.remove('hidden');
+  showView('viewForm');
 
   document.getElementById('profileId').value   = draft.id || '';
   document.getElementById('profileName').value = draft.name || '';
@@ -208,7 +235,6 @@ function restoreFormFromDraft(draft) {
   document.getElementById('profilePort').value = draft.port || '';
   document.getElementById('profileUser').value = draft.username || '';
   document.getElementById('profilePass').value = draft.password || '';
-  document.getElementById('toast').className   = 'toast hidden';
 
   selectedType = draft.type || 'http';
   document.querySelectorAll('.type-btn').forEach(b => {
@@ -252,6 +278,10 @@ function bindEvents() {
   document.getElementById('pwToggle').addEventListener('click', togglePassword);
   document.getElementById('settingsBtn').addEventListener('click', () => openSettings());
   document.getElementById('settingsBackBtn').addEventListener('click', () => closeSettings());
+  document.getElementById('importDomainsBtn').addEventListener('click', () => {
+    document.getElementById('importFileInput').click();
+  });
+  document.getElementById('importFileInput').addEventListener('change', handleImportFile);
 
   document.getElementById('typeSelector').addEventListener('click', (e) => {
     const btn = e.target.closest('.type-btn');
@@ -424,9 +454,8 @@ function deleteProfile(profileId) {
 }
 
 function openForm(profile) {
-  document.getElementById('viewList').classList.add('hidden');
+  showView('viewForm');
   const formView = document.getElementById('viewForm');
-  formView.classList.remove('hidden');
 
   document.getElementById('profileId').value   = '';
   document.getElementById('profileName').value = '';
@@ -434,7 +463,6 @@ function openForm(profile) {
   document.getElementById('profilePort').value = '';
   document.getElementById('profileUser').value = '';
   document.getElementById('profilePass').value = '';
-  document.getElementById('toast').className   = 'toast hidden';
   document.getElementById('formTitle').textContent = t('newProfile');
 
   selectedType = 'http';
@@ -462,8 +490,7 @@ function openForm(profile) {
 
 function closeForm() {
   clearDraft();
-  document.getElementById('viewForm').classList.add('hidden');
-  document.getElementById('viewList').classList.remove('hidden');
+  showView('viewList');
 }
 
 function getFormProfile() {
@@ -498,7 +525,6 @@ function saveProfile() {
       if (existing > -1) profiles[existing] = res.profile;
       else profiles.push(res.profile);
       state.profiles = profiles;
-      // Saved successfully — clear draft
       clearDraft();
       closeFormAfterSave();
       renderAll();
@@ -509,8 +535,7 @@ function saveProfile() {
 }
 
 function closeFormAfterSave() {
-  document.getElementById('viewForm').classList.add('hidden');
-  document.getElementById('viewList').classList.remove('hidden');
+  showView('viewList');
 }
 
 function testProxy() {
@@ -544,18 +569,14 @@ function openSettings() {
       if (!state.tunnelDomains) state.tunnelDomains = [];
       if (!state.tunnelMode) state.tunnelMode = 'all';
     }
-    document.getElementById('viewList').classList.add('hidden');
-    document.getElementById('viewForm').classList.add('hidden');
-    const settingsView = document.getElementById('viewSettings');
-    settingsView.classList.remove('hidden');
+    showView('viewSettings');
     renderSettingsView();
     applyTranslations();
   });
 }
 
 function closeSettings() {
-  document.getElementById('viewSettings').classList.add('hidden');
-  document.getElementById('viewList').classList.remove('hidden');
+  showView('viewList');
   renderAll();
 }
 
@@ -695,12 +716,25 @@ async function removeDomain(domain) {
 }
 
 function showSettingsToast(message, type = 'success') {
-  const toast = document.getElementById('settingsToast');
-  if (!toast) return;
-  toast.textContent = message;
-  toast.className = `toast ${type}`;
-  clearTimeout(toast._timer);
-  toast._timer = setTimeout(() => { toast.className = 'toast hidden'; }, 2000);
+  document.getElementById('floatNotif')?.remove();
+
+  const notif = document.createElement('div');
+  notif.id = 'floatNotif';
+  notif.className = 'float-notif float-notif--' + type;
+
+  const icon = type === 'success'
+    ? '<svg width="13" height="13" viewBox="0 0 13 13" fill="none"><circle cx="6.5" cy="6.5" r="6" stroke="currentColor" stroke-width="1.2"/><path d="M4 6.5l2 2 3-3" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>'
+    : '<svg width="13" height="13" viewBox="0 0 13 13" fill="none"><circle cx="6.5" cy="6.5" r="6" stroke="currentColor" stroke-width="1.2"/><path d="M6.5 4v3M6.5 9h.01" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>';
+
+  notif.innerHTML = '<span class="float-notif__icon">' + icon + '</span><span class="float-notif__text">' + escHtml(message) + '</span>';
+
+  document.getElementById('app').appendChild(notif);
+
+  clearTimeout(showSettingsToast._timer);
+  showSettingsToast._timer = setTimeout(() => {
+    notif.classList.add('float-notif--out');
+    setTimeout(() => notif.remove(), 350);
+  }, 2000);
 }
 
 function togglePassword() {
@@ -709,11 +743,25 @@ function togglePassword() {
 }
 
 function showToast(message, type = 'success') {
-  const toast = document.getElementById('toast');
-  toast.textContent = message;
-  toast.className = `toast ${type}`;
-  clearTimeout(toast._timer);
-  toast._timer = setTimeout(() => { toast.className = 'toast hidden'; }, 3000);
+  document.getElementById('floatToast')?.remove();
+
+  const notif = document.createElement('div');
+  notif.id = 'floatToast';
+  notif.className = 'float-notif float-notif--' + type;
+
+  const icon = type === 'success'
+    ? '<svg width="13" height="13" viewBox="0 0 13 13" fill="none"><circle cx="6.5" cy="6.5" r="6" stroke="currentColor" stroke-width="1.2"/><path d="M4 6.5l2 2 3-3" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>'
+    : '<svg width="13" height="13" viewBox="0 0 13 13" fill="none"><circle cx="6.5" cy="6.5" r="6" stroke="currentColor" stroke-width="1.2"/><path d="M6.5 4v3M6.5 9h.01" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>';
+
+  notif.innerHTML = '<span class="float-notif__icon">' + icon + '</span><span class="float-notif__text">' + escHtml(message) + '</span>';
+
+  document.getElementById('app').appendChild(notif);
+
+  clearTimeout(showToast._timer);
+  showToast._timer = setTimeout(() => {
+    notif.classList.add('float-notif--out');
+    setTimeout(() => notif.remove(), 350);
+  }, 3000);
 }
 
 function showNotification(message) {
@@ -733,4 +781,156 @@ function escHtml(str) {
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;');
+}
+
+function isValidDomain(raw) {
+  const d = raw.trim().toLowerCase();
+  if (!d) return false;
+  if (d === 'localhost') return true;
+  const clean = d.startsWith('*.') ? d.slice(2) : d;
+  if (/\s/.test(clean)) return false;
+  if (clean.startsWith('.') || clean.endsWith('.')) return false;
+  if (!/\./.test(clean)) return false;
+  if (/[^\w.\-]/.test(clean)) return false;
+  return true;
+}
+
+function parseTxtDomains(text) {
+  const existing = Array.isArray(state.tunnelDomains) ? state.tunnelDomains : [];
+  const seen = new Set(existing);
+  const newDomains = [];
+  const dupes = [];
+  const invalid = [];
+
+  const lines = text.split(/\r?\n/);
+  for (let line of lines) {
+    line = line.replace(/#.*$/, '').trim().toLowerCase();
+    if (!line) continue;
+    if (!isValidDomain(line)) { invalid.push(line); continue; }
+    const domain = line.startsWith('*.') ? line.slice(2) : line;
+    if (seen.has(domain)) { dupes.push(domain); continue; }
+    seen.add(domain);
+    newDomains.push(domain);
+  }
+
+  return { newDomains, dupes, invalid };
+}
+
+function handleImportFile(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  e.target.value = '';
+
+  const reader = new FileReader();
+  reader.onload = (ev) => {
+    const text = ev.target.result;
+    const result = parseTxtDomains(text);
+    showImportOverlay(result, file.name);
+  };
+  reader.readAsText(file, 'utf-8');
+}
+
+function showImportOverlay({ newDomains, dupes, invalid }, filename) {
+  document.getElementById('importOverlay')?.remove();
+
+  const totalNew = newDomains.length;
+  const hasAnything = totalNew > 0;
+
+  const overlay = document.createElement('div');
+  overlay.className = 'import-overlay';
+  overlay.id = 'importOverlay';
+
+  const previewItems = [...newDomains.slice(0, 30).map(d =>
+    `<div class="import-preview-item"><span>${escHtml(d)}</span></div>`
+  )];
+  if (newDomains.length > 30) {
+    previewItems.push(`<div class="import-preview-more">+${newDomains.length - 30} ${lang === 'ru' ? 'ещё' : 'more'}</div>`);
+  }
+  if (newDomains.length === 0) {
+    previewItems.push(`<div class="import-preview-item skipped"><span>${lang === 'ru' ? 'Нет новых доменов' : 'No new domains to add'}</span></div>`);
+  }
+
+  overlay.innerHTML = `
+    <div class="import-card">
+      <div class="import-card-header">
+        <div class="import-card-icon">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+            <path d="M8 2v8M5 8l3 3 3-3" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M2 12v1a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1v-1" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
+          </svg>
+        </div>
+        <div>
+          <div class="import-card-title">${escHtml(t('importTitle'))}</div>
+          <div class="import-card-sub">${escHtml(filename)}</div>
+        </div>
+      </div>
+      <div class="import-card-body">
+        <div class="import-stats">
+          <div class="import-stat">
+            <div class="import-stat-value ${totalNew === 0 ? 'danger' : ''}">${totalNew}</div>
+            <div class="import-stat-label">${escHtml(t('importNew'))}</div>
+          </div>
+          <div class="import-stat">
+            <div class="import-stat-value ${dupes.length > 0 ? 'warn' : ''}">${dupes.length}</div>
+            <div class="import-stat-label">${escHtml(t('importDupes'))}</div>
+          </div>
+          <div class="import-stat">
+            <div class="import-stat-value ${invalid.length > 0 ? 'warn' : ''}">${invalid.length}</div>
+            <div class="import-stat-label">${escHtml(t('importInvalid'))}</div>
+          </div>
+        </div>
+        <div class="import-preview">${previewItems.join('')}</div>
+      </div>
+      <div class="import-card-actions">
+        <button class="btn btn-ghost" id="importCancelBtn">${escHtml(t('importCancel'))}</button>
+        <button class="btn btn-primary" id="importConfirmBtn" ${!hasAnything ? 'disabled style="opacity:.4;cursor:not-allowed"' : ''}>${escHtml(t('importConfirm'))}</button>
+      </div>
+    </div>
+  `;
+
+  document.getElementById('app').appendChild(overlay);
+
+  overlay.addEventListener('click', (e) => {
+    if (e.target === overlay) closeImportOverlay();
+  });
+  document.getElementById('importCancelBtn').addEventListener('click', closeImportOverlay);
+  document.getElementById('importConfirmBtn').addEventListener('click', () => {
+    if (!hasAnything) return;
+    confirmImport(newDomains);
+  });
+}
+
+function closeImportOverlay() {
+  const overlay = document.getElementById('importOverlay');
+  if (overlay) {
+    overlay.style.animation = 'none';
+    overlay.style.opacity = '0';
+    overlay.style.transition = 'opacity 150ms ease';
+    setTimeout(() => overlay.remove(), 150);
+  }
+}
+
+async function confirmImport(domains) {
+  const btn = document.getElementById('importConfirmBtn');
+  if (btn) { btn.disabled = true; btn.textContent = '...'; }
+
+  let added = 0;
+  for (const domain of domains) {
+    try {
+      const resp = await chrome.runtime.sendMessage({ action: 'addTunnelDomain', domain });
+      if (resp && resp.success) {
+        if (!Array.isArray(state.tunnelDomains)) state.tunnelDomains = [];
+        if (!state.tunnelDomains.includes(domain)) {
+          state.tunnelDomains.push(domain);
+          added++;
+        }
+      }
+    } catch (err) {
+      console.error('Failed to add domain', domain, err);
+    }
+  }
+
+  closeImportOverlay();
+  await renderSettingsView();
+  showSettingsToast(t('importDone', { n: added }), 'success');
 }
