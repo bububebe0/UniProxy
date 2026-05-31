@@ -108,7 +108,7 @@ function pacScheme(type) {
 
 async function buildProxyConfig(profile, tunnelMode, tunnelDomains) {
   const proxyHost = profile.host + ':' + parseInt(profile.port);
-  const scheme = profile.type === 'https' ? 'http' : profile.type; // for fixed_servers
+  const scheme = profile.type === 'https' ? 'http' : profile.type;
 
   if (tunnelMode === 'specific' && tunnelDomains && tunnelDomains.length > 0) {
     const patterns = tunnelDomains.map(function(d) {
