@@ -2,7 +2,7 @@
 
 <div align="center">
 
-![UniProxy Logo](icons/icon128.png)
+![UniProxy Logo](icons/icon48.png)
 
 
 **Расширение Chrome для управления прокси прямо из панели инструментов**
