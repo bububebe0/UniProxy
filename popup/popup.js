@@ -49,6 +49,15 @@ const TRANSLATIONS = {
     importConfirm:  'Add Domains',
     importEmpty:    'File is empty or has no valid domains',
     importDone:     'Imported {n} domain(s)',
+    modeChangedAll:  'Mode: All sites',
+    modeChangedSpec: 'Mode: Specific sites only',
+    modeChangeFail:  'Failed to update mode',
+    domainInvalid:   'Invalid domain format',
+    domainAdded:     'Added: {domain}',
+    domainAddFail:   'Failed to add domain',
+    domainRemoved:   'Removed: {domain}',
+    domainRemoveFail:'Failed to remove domain',
+    testFailSuffix:  'Could not reach proxy',
   },
   ru: {
     noProxy:        'Нет активного прокси',
@@ -100,6 +109,15 @@ const TRANSLATIONS = {
     importConfirm:  'Добавить',
     importEmpty:    'Файл пуст или не содержит доменов',
     importDone:     'Импортировано: {n}',
+    modeChangedAll:  'Режим: Все сайты',
+    modeChangedSpec: 'Режим: Только указанные',
+    modeChangeFail:  'Не удалось изменить режим',
+    domainInvalid:   'Неверный формат домена',
+    domainAdded:     'Добавлен: {domain}',
+    domainAddFail:   'Не удалось добавить домен',
+    domainRemoved:   'Удалён: {domain}',
+    domainRemoveFail:'Не удалось удалить домен',
+    testFailSuffix:  'Прокси недоступен',
   }
 };
 
@@ -557,7 +575,7 @@ function testProxy() {
     if (res && res.success) {
       showToast(t('testOk', { ms: res.latency }), 'success');
     } else {
-      showToast(t('testFail') + (res?.error || 'Could not reach proxy'), 'error');
+      showToast(t('testFail') + (res?.error || t('testFailSuffix')), 'error');
     }
   });
 }
@@ -661,9 +679,9 @@ function modeClickHandler(e) {
     if (res && res.success) {
       state.tunnelMode = mode;
       renderSettingsView();
-      showSettingsToast(`Mode changed to ${mode === 'all' ? 'All sites' : 'Specific sites'}`, 'success');
+      showSettingsToast(t(mode === 'all' ? 'modeChangedAll' : 'modeChangedSpec'), 'success');
     } else {
-      showSettingsToast('Failed to update mode', 'error');
+      showSettingsToast(t('modeChangeFail'), 'error');
     }
   });
 }
@@ -673,7 +691,7 @@ async function addDomainHandler() {
   let domain = input.value.trim().toLowerCase();
   if (!domain) return;
   if (domain !== 'localhost' && (!domain.includes('.') || domain.startsWith('.') || domain.endsWith('.'))) {
-    showSettingsToast('Invalid domain format', 'error');
+    showSettingsToast(t('domainInvalid'), 'error');
     return;
   }
   try {
@@ -681,13 +699,13 @@ async function addDomainHandler() {
     if (resp && resp.success) {
       input.value = '';
       await renderSettingsView();
-      showSettingsToast(`Added: ${domain}`, 'success');
+      showSettingsToast(t('domainAdded', { domain }), 'success');
     } else {
-      showSettingsToast('Failed to add domain', 'error');
+      showSettingsToast(t('domainAddFail'), 'error');
     }
   } catch (err) {
     console.error(err);
-    showSettingsToast('Failed to add domain', 'error');
+    showSettingsToast(t('domainAddFail'), 'error');
   }
 }
 
@@ -705,13 +723,13 @@ async function removeDomain(domain) {
         state.tunnelDomains = [];
       }
       await renderSettingsView();
-      showSettingsToast(`Removed: ${domain}`, 'success');
+      showSettingsToast(t('domainRemoved', { domain }), 'success');
     } else {
-      showSettingsToast('Failed to remove domain', 'error');
+      showSettingsToast(t('domainRemoveFail'), 'error');
     }
   } catch (err) {
     console.error(err);
-    showSettingsToast('Failed to remove domain', 'error');
+    showSettingsToast(t('domainRemoveFail'), 'error');
   }
 }
 
@@ -782,7 +800,9 @@ function escHtml(str) {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;');
 }
-
+/* ─────────────────────────────────────────────
+   Import domains from .txt
+───────────────────────────────────────────── */
 function isValidDomain(raw) {
   const d = raw.trim().toLowerCase();
   if (!d) return false;
