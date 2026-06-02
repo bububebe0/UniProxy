@@ -7,6 +7,7 @@ const TRANSLATIONS = {
     noProfilesSub:  'Click {+} to add your first proxy',
     labelName:      'Name',
     labelProtocol:  'Protocol',
+    labelColor:     'Color',
     labelHost:      'Host',
     labelPort:      'Port',
     labelUser:      'Username',
@@ -67,6 +68,7 @@ const TRANSLATIONS = {
     noProfilesSub:  'Нажмите {+}, чтобы добавить прокси',
     labelName:      'Название',
     labelProtocol:  'Протокол',
+    labelColor:     'Цвет',
     labelHost:      'Хост',
     labelPort:      'Порт',
     labelUser:      'Пользователь',
@@ -175,7 +177,19 @@ function applyTranslations() {
 
 let state = { enabled: false, activeProfileId: null, profiles: [], tunnelMode: 'all', tunnelDomains: [] };
 let selectedType = 'http';
+let selectedColor = '#00ff88';
 let disconnectBar = null;
+
+const PROFILE_COLORS = [
+  '#00ff88',
+  '#5b9dff',
+  '#a78bfa',
+  '#f0a500',
+  '#ff3b5c',
+  '#00d4ff',
+  '#ff6b9d',
+  '#c8ff00',
+];
 
 function showView(id) {
   ['viewList', 'viewForm', 'viewSettings'].forEach(v => {
@@ -191,6 +205,7 @@ function saveDraft() {
     id:       document.getElementById('profileId').value || null,
     name:     document.getElementById('profileName').value,
     type:     selectedType,
+    color:    selectedColor,
     host:     document.getElementById('profileHost').value,
     port:     document.getElementById('profilePort').value,
     username: document.getElementById('profileUser').value,
@@ -201,6 +216,26 @@ function saveDraft() {
 
 function clearDraft() {
   chrome.storage.local.remove(DRAFT_KEY);
+}
+
+function renderColorSelector(active) {
+  let container = document.getElementById('colorSelector');
+  if (!container) return;
+  container.innerHTML = '';
+  PROFILE_COLORS.forEach(color => {
+    const btn = document.createElement('button');
+    btn.className = 'color-swatch' + (color === active ? ' active' : '');
+    btn.style.setProperty('--swatch-color', color);
+    btn.dataset.color = color;
+    btn.type = 'button';
+    btn.title = color;
+    btn.addEventListener('click', () => {
+      selectedColor = color;
+      renderColorSelector(color);
+      saveDraft();
+    });
+    container.appendChild(btn);
+  });
 }
 
 function bindDraftListeners() {
@@ -255,9 +290,11 @@ function restoreFormFromDraft(draft) {
   document.getElementById('profilePass').value = draft.password || '';
 
   selectedType = draft.type || 'http';
+  selectedColor = draft.color || PROFILE_COLORS[0];
   document.querySelectorAll('.type-btn').forEach(b => {
     b.classList.toggle('active', b.dataset.type === selectedType);
   });
+  renderColorSelector(selectedColor);
 
   const formTitle = document.getElementById('formTitle');
   formTitle.textContent = draft.id ? t('editProfile') : t('newProfile');
@@ -375,7 +412,7 @@ function createProfileCard(profile, idx) {
   card.style.animationDelay = `${idx * 40}ms`;
 
   const typeColors = { http: '#5b9dff', https: '#a78bfa', socks5: '#00ff88', socks4: '#f0a500' };
-  const iconColor = typeColors[profile.type] || '#888';
+  const iconColor = profile.color || typeColors[profile.type] || '#888';
 
   card.innerHTML = `
     <div class="profile-icon">
@@ -387,7 +424,9 @@ function createProfileCard(profile, idx) {
       </svg>
     </div>
     <div class="profile-info">
-      <div class="profile-name">${escHtml(profile.name)}</div>
+      <div class="profile-name">
+        <span class="profile-color-dot" style="background:${iconColor}"></span>${escHtml(profile.name)}
+      </div>
       <div class="profile-addr">${escHtml(profile.host)}:${escHtml(String(profile.port))}</div>
     </div>
     <span class="profile-type-badge">${escHtml(profile.type)}</span>
@@ -487,6 +526,8 @@ function openForm(profile) {
   document.querySelectorAll('.type-btn').forEach(b => {
     b.classList.toggle('active', b.dataset.type === 'http');
   });
+  selectedColor = PROFILE_COLORS[0];
+  renderColorSelector(selectedColor);
 
   if (profile) {
     clearDraft();
@@ -498,9 +539,11 @@ function openForm(profile) {
     document.getElementById('profileUser').value = profile.username || '';
     document.getElementById('profilePass').value = profile.password || '';
     selectedType = profile.type || 'http';
+    selectedColor = profile.color || PROFILE_COLORS[0];
     document.querySelectorAll('.type-btn').forEach(b => {
       b.classList.toggle('active', b.dataset.type === selectedType);
     });
+    renderColorSelector(selectedColor);
   }
   saveDraft();
   applyTranslations();
@@ -516,6 +559,7 @@ function getFormProfile() {
     id:       document.getElementById('profileId').value || null,
     name:     document.getElementById('profileName').value.trim(),
     type:     selectedType,
+    color:    selectedColor,
     host:     document.getElementById('profileHost').value.trim(),
     port:     document.getElementById('profilePort').value.trim(),
     username: document.getElementById('profileUser').value,
@@ -800,9 +844,7 @@ function escHtml(str) {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;');
 }
-/* ─────────────────────────────────────────────
-   Import domains from .txt
-───────────────────────────────────────────── */
+
 function isValidDomain(raw) {
   const d = raw.trim().toLowerCase();
   if (!d) return false;
