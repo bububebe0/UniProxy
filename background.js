@@ -1,4 +1,3 @@
-
 const DEFAULT_STATE = {
   enabled: false,
   activeProfileId: null,
@@ -262,12 +261,41 @@ function testProxy(profile, callback) {
       callback({ success: false, error: chrome.runtime.lastError.message });
       return;
     }
-    chrome.storage.local.get('uniproxy', (data) => {
-      const state = data.uniproxy || DEFAULT_STATE;
-      if (!state.enabled) clearProxy();
-      else if (state.activeProfileId) reconnectProxy(state.activeProfileId);
-      callback({ success: true, latency: Math.floor(Math.random() * 80) + 20 });
-    });
+
+    const TEST_URLS = [
+      'https://www.gstatic.com/generate_204',
+      'https://connectivitycheck.gstatic.com/generate_204',
+      'https://clients3.google.com/generate_204'
+    ];
+
+    const start = Date.now();
+
+    const tryFetch = (urls, idx) => {
+      if (idx >= urls.length) {
+        chrome.storage.local.get('uniproxy', (data) => {
+          const state = data.uniproxy || DEFAULT_STATE;
+          if (!state.enabled) clearProxy();
+          else if (state.activeProfileId) reconnectProxy(state.activeProfileId);
+        });
+        callback({ success: false, error: 'Proxy unreachable' });
+        return;
+      }
+      fetch(urls[idx], { method: 'HEAD', cache: 'no-store', signal: AbortSignal.timeout(7000) })
+        .then(res => {
+          const latency = Date.now() - start;
+          chrome.storage.local.get('uniproxy', (data) => {
+            const state = data.uniproxy || DEFAULT_STATE;
+            if (!state.enabled) clearProxy();
+            else if (state.activeProfileId) reconnectProxy(state.activeProfileId);
+          });
+          callback({ success: true, latency });
+        })
+        .catch(() => {
+          tryFetch(urls, idx + 1);
+        });
+    };
+
+    tryFetch(TEST_URLS, 0);
   });
 }
 
