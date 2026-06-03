@@ -8,7 +8,7 @@
 **Расширение Chrome для управления прокси прямо из панели инструментов**
 
 [![Manifest V3](https://img.shields.io/badge/Manifest-V3-blue?style=flat-square)](https://developer.chrome.com/docs/extensions/mv3/)
-[![Version](https://img.shields.io/badge/Version-1.2.0-green?style=flat-square)](manifest.json)
+[![Version](https://img.shields.io/badge/Version-1.2-green?style=flat-square)](manifest.json)
 [![License](https://img.shields.io/badge/License-MIT-yellow?style=flat-square)](LICENSE)
 
 </div>
