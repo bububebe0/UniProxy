@@ -60,6 +60,9 @@ uniproxy/
 
 ## Установка
 
+### Из [Chrome Webstore]( https://chromewebstore.google.com/detail/hboglmmhgkbmgbdamljcmhmkdbkfenkc?utm_source=item-share-cb)        
+
+
 ### Из /releases
 1. Скачайте последнюю версию файла .rar
    https://github.com/bububebe0/UniProxy/releases
