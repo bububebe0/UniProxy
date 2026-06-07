@@ -2,17 +2,93 @@ const DEFAULT_STATE = {
   enabled: false,
   activeProfileId: null,
   profiles: [],
+  groups: [],
   tunnelMode: 'all',
-  tunnelDomains: []
+  tunnelDomains: [],
+  autoDisconnect: true
 };
+
+const WATCHDOG_INTERVAL_MS = 30000; 
+const TEST_URLS = [
+  'https://www.gstatic.com/generate_204',
+  'https://connectivitycheck.gstatic.com/generate_204',
+  'https://clients3.google.com/generate_204'
+];
+
+let watchdogTimer = null;
+
+function startWatchdog() {
+  stopWatchdog();
+  watchdogTimer = setInterval(runWatchdog, WATCHDOG_INTERVAL_MS);
+}
+
+function stopWatchdog() {
+  if (watchdogTimer !== null) {
+    clearInterval(watchdogTimer);
+    watchdogTimer = null;
+  }
+}
+
+async function runWatchdog() {
+  const { uniproxy } = await chrome.storage.local.get('uniproxy');
+  const state = uniproxy || DEFAULT_STATE;
+  if (!state.enabled || !state.activeProfileId) { stopWatchdog(); return; }
+  if (!state.autoDisconnect) return;
+
+  const alive = await checkConnectivity();
+  if (!alive) {
+    clearProxy();
+    const freshData = await chrome.storage.local.get('uniproxy');
+    const s = freshData.uniproxy || DEFAULT_STATE;
+    s.enabled = false;
+    s.activeProfileId = null;
+    await chrome.storage.local.set({ uniproxy: s });
+    updateIcon(false);
+    stopWatchdog();
+    chrome.notifications.create('uniproxy_autodisconnect', {
+      type: 'basic',
+      iconUrl: 'icons/icon48.png',
+      title: 'UniProxy',
+      message: 'Proxy unreachable — disconnected automatically.'
+    });
+  }
+}
+
+function checkConnectivity() {
+  return new Promise((resolve) => {
+    const tryFetch = (idx) => {
+      if (idx >= TEST_URLS.length) { resolve(false); return; }
+      fetch(TEST_URLS[idx], { method: 'HEAD', cache: 'no-store', signal: AbortSignal.timeout(6000) })
+        .then(res => resolve(res.status < 500))
+        .catch(() => tryFetch(idx + 1));
+    };
+    tryFetch(0);
+  });
+}
+
 
 chrome.runtime.onInstalled.addListener(() => {
   chrome.storage.local.get('uniproxy', (data) => {
     if (!data.uniproxy) {
       chrome.storage.local.set({ uniproxy: DEFAULT_STATE });
+    } else {
+      // migrate existing state
+      const s = data.uniproxy;
+      let changed = false;
+      if (!Array.isArray(s.groups))         { s.groups = [];          changed = true; }
+      if (s.autoDisconnect === undefined)   { s.autoDisconnect = true; changed = true; }
+      if (changed) chrome.storage.local.set({ uniproxy: s });
     }
   });
   clearProxy();
+});
+
+chrome.runtime.onStartup.addListener(async () => {
+  const { uniproxy } = await chrome.storage.local.get('uniproxy');
+  const state = uniproxy || DEFAULT_STATE;
+  if (state.enabled && state.activeProfileId) {
+    startWatchdog();
+  }
 });
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
@@ -58,8 +134,77 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     case 'removeTunnelDomain':
       removeTunnelDomain(message.domain, sendResponse);
       return true;
+
+    case 'saveGroup':
+      saveGroup(message.group, sendResponse);
+      return true;
+
+    case 'deleteGroup':
+      deleteGroup(message.groupId, sendResponse);
+      return true;
+
+    case 'setProfileGroup':
+      setProfileGroup(message.profileId, message.groupId, sendResponse);
+      return true;
+
+    case 'setAutoDisconnect':
+      setAutoDisconnect(message.value, sendResponse);
+      return true;
   }
 });
+
+
+async function saveGroup(group, callback) {
+  const { uniproxy } = await chrome.storage.local.get('uniproxy');
+  const state = uniproxy || DEFAULT_STATE;
+  if (!Array.isArray(state.groups)) state.groups = [];
+
+  if (group.id) {
+    const idx = state.groups.findIndex(g => g.id === group.id);
+    if (idx > -1) state.groups[idx] = group;
+    else state.groups.push(group);
+  } else {
+    group.id = 'group_' + Date.now();
+    state.groups.push(group);
+  }
+  await chrome.storage.local.set({ uniproxy: state });
+  callback({ success: true, group });
+}
+
+async function deleteGroup(groupId, callback) {
+  const { uniproxy } = await chrome.storage.local.get('uniproxy');
+  const state = uniproxy || DEFAULT_STATE;
+  state.groups = (state.groups || []).filter(g => g.id !== groupId);
+  (state.profiles || []).forEach(p => { if (p.groupId === groupId) delete p.groupId; });
+  await chrome.storage.local.set({ uniproxy: state });
+  callback({ success: true });
+}
+
+async function setProfileGroup(profileId, groupId, callback) {
+  const { uniproxy } = await chrome.storage.local.get('uniproxy');
+  const state = uniproxy || DEFAULT_STATE;
+  const profile = (state.profiles || []).find(p => p.id === profileId);
+  if (profile) {
+    if (groupId) profile.groupId = groupId;
+    else delete profile.groupId;
+    await chrome.storage.local.set({ uniproxy: state });
+    callback({ success: true });
+  } else {
+    callback({ success: false });
+  }
+}
+
+
+async function setAutoDisconnect(value, callback) {
+  const { uniproxy } = await chrome.storage.local.get('uniproxy');
+  const state = uniproxy || DEFAULT_STATE;
+  state.autoDisconnect = !!value;
+  await chrome.storage.local.set({ uniproxy: state });
+  if (!value) stopWatchdog();
+  else if (state.enabled && state.activeProfileId) startWatchdog();
+  callback({ success: true });
+}
+
 
 function saveProfile(profile, callback) {
   chrome.storage.local.get('uniproxy', (data) => {
@@ -90,6 +235,7 @@ function deleteProfile(profileId, callback) {
       clearProxy();
       state.enabled = false;
       state.activeProfileId = null;
+      stopWatchdog();
     }
 
     state.profiles = (state.profiles || []).filter(p => p.id !== profileId);
@@ -176,6 +322,7 @@ function connectProxy(profileId, callback) {
       state.activeProfileId = profileId;
       chrome.storage.local.set({ uniproxy: state }, () => {
         updateIcon(true);
+        if (state.autoDisconnect !== false) startWatchdog();
         callback({ success: true });
       });
     });
@@ -184,6 +331,7 @@ function connectProxy(profileId, callback) {
 
 function disconnectProxy(callback) {
   clearProxy();
+  stopWatchdog();
   chrome.storage.local.get('uniproxy', (data) => {
     const state = data.uniproxy || DEFAULT_STATE;
     state.enabled = false;
@@ -204,7 +352,8 @@ async function getTunnelSettings(callback) {
   const state = uniproxy || DEFAULT_STATE;
   callback({
     mode: state.tunnelMode || 'all',
-    domains: Array.isArray(state.tunnelDomains) ? state.tunnelDomains : []
+    domains: Array.isArray(state.tunnelDomains) ? state.tunnelDomains : [],
+    autoDisconnect: state.autoDisconnect !== false
   });
 }
 
@@ -262,12 +411,6 @@ function testProxy(profile, callback) {
       return;
     }
 
-    const TEST_URLS = [
-      'https://www.gstatic.com/generate_204',
-      'https://connectivitycheck.gstatic.com/generate_204',
-      'https://clients3.google.com/generate_204'
-    ];
-
     const start = Date.now();
 
     const tryFetch = (urls, idx) => {
@@ -280,7 +423,7 @@ function testProxy(profile, callback) {
         callback({ success: false, error: 'Proxy unreachable' });
         return;
       }
-      fetch(urls[idx], { method: 'HEAD', cache: 'no-store', signal: AbortSignal.timeout(7000) })
+      fetch(TEST_URLS[idx], { method: 'HEAD', cache: 'no-store', signal: AbortSignal.timeout(7000) })
         .then(res => {
           const latency = Date.now() - start;
           chrome.storage.local.get('uniproxy', (data) => {
