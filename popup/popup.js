@@ -278,6 +278,26 @@ function bindDraftListeners() {
     const el = document.getElementById(id);
     if (el) el.addEventListener('input', saveDraft);
   });
+
+  const hostEl = document.getElementById('profileHost');
+  if (hostEl) {
+    hostEl.addEventListener('paste', (e) => {
+      const pasted = (e.clipboardData || window.clipboardData).getData('text').trim();
+      const match = pasted.match(/^(\[.+\]|[^:]+):(\d{1,5})$/);
+      if (match) {
+        const host = match[1];
+        const port = parseInt(match[2], 10);
+        if (port >= 1 && port <= 65535) {
+          e.preventDefault();
+          hostEl.value = host;
+          const portEl = document.getElementById('profilePort');
+          if (portEl) portEl.value = port;
+          saveDraft();
+        }
+      }
+    });
+  }
+
   document.getElementById('typeSelector').addEventListener('click', () => setTimeout(saveDraft, 0));
   const groupSel = document.getElementById('profileGroupSelect');
   if (groupSel) groupSel.addEventListener('change', () => {
